@@ -1,105 +1,78 @@
 package main
 
 import (
-	"log"
-	"net"
-	"time"
-	"flag"
-
 	"github.com/miekg/dns"
+	"fmt"
+	"flag"
+	"regexp"
 )
 
-type SpeedTestResult struct {
-	IP     string
-	Speed  time.Duration
-}
-
 var (
-	filename   string
-	port       string
-	IPs        []string
-	fastestIPs []SpeedTestResult
+	filename string
+	port int
+	defaultDomain string
+	upstreamServer string
+	pingTimes int
+	interval int
+	fixedIPAddressV4 = ""
+	fixedIPAddressV6 = ""
+	dnsProxy = DNSProxy{}
+	logger *Log
+	logLevel string
 )
 
 func main() {
 	flag.StringVar(&filename, "f", "ip.txt", "File name")
-	flag.StringVar(&port, "p", "53", "Port number")
+	flag.IntVar(&port, "p", 53, "Port number")
+	flag.StringVar(&defaultDomain, "domain", "creativecommons.org", "Default domain")
+	flag.IntVar(&pingTimes, "t", 3, "Ping times")
+	flag.StringVar(&logLevel, "log", "info", "Log level: none | err | info")
+	flag.StringVar(&upstreamServer, "dns", "8.8.8.8:53", "Upstream DNS Server")
+	flag.IntVar(&interval, "i", 360, "Each speed measurement interval")
 	flag.Parse()
 
-	log.Printf("Listen: %s", port)
+	logger = NewLogger(logLevel)
 
-	server := dns.Server{
-		Addr: ":" + string(port),
-		Net:  "udp",
-	}
-
-	server.Handler = dns.HandlerFunc(func(w dns.ResponseWriter, r *dns.Msg) {
-
-		resp := new(dns.Msg)
-		resp.SetReply(r)
-		ip := getIP(fastestIPs)
-
-		for _, q := range r.Question {
-			if (isIPv6(ip)) {
-				rr := new(dns.AAAA)
-				rr.Hdr = dns.RR_Header{
-					Name:   q.Name,
-					Rrtype: dns.TypeAAAA,
-					Class:  dns.ClassINET,
-					Ttl:    3600,
-				}
-				rr.AAAA = net.ParseIP(ip)
-				resp.Answer = append(resp.Answer, rr)
-			} else {
-				rr := new(dns.A)
-				rr.Hdr = dns.RR_Header{
-					Name:   q.Name,
-					Rrtype: dns.TypeA,
-					Class:  dns.ClassINET,
-					Ttl:    3600,
-				}
-				rr.A = net.ParseIP(ip)
-				resp.Answer = append(resp.Answer, rr)
-			}
-		}
-
-		log.Printf("IP: %s", ip)
-
-		err := w.WriteMsg(resp)
-		if err != nil {
-			log.Printf("Failed to send DNS response: %s", err)
-		}
-	})
+	logger.Infof("Upstream DNS Server: %s", upstreamServer)
 
 	go func() {
-		err := server.ListenAndServe()
-		if err != nil {
-			log.Fatal(err)
-		} else {
-			log.Printf("DNS server start sucess")
-		}
+		LookupDefaultIP(defaultDomain)
+		testSpeed()
 	}()
 
-	testSpeed()
+	// Create a new DNS server
+	dns.HandleFunc(".", handleDNSRequest)
+
+	server := &dns.Server{Addr: fmt.Sprintf(":%d", port), Net: "udp"}
+	logger.Infof("Starting DNS server on :%d", port)
+	err := server.ListenAndServe()
+	if err != nil {
+		logger.Errorf("Failed to start server: %s\n", err.Error())
+	}
+	defer server.Shutdown()
 }
 
-func testSpeed() {
-	IPs = LookupIP(filename)
+func handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
+	switch r.Opcode {
+	case dns.OpcodeQuery:
+		m, err := dnsProxy.getResponse(r)
+		if err != nil {
+			logger.Errorf("Failed lookup for %s with error: %s\n", r, err.Error())
+			m.SetReply(r)
+			w.WriteMsg(m)
+			return
+		}
+		if len(m.Answer) > 0 {
+			pattern := regexp.MustCompile(`(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}`)
+			ipAddress := pattern.FindAllString(m.Answer[0].String(), -1)
 
-	// Test connection speed and sort
-	fastestIPs = testAndSortIPs(IPs)	// Print sorted results
-
-	log.Printf("Connection speed sorting results:")
-	for _, result := range fastestIPs {
-		log.Printf("IP: %s, Speed: %s\n", result.IP, result.Speed)
-	}
-
-	ip := getIP(fastestIPs)
-	log.Printf(ip)
-
-	ticker := time.NewTicker(6 * time.Hour)
-	for {
-		<-ticker.C
-		fastestIPs = testAndSortIPs(IPs)	// Print sorted results
+			if len(ipAddress) > 0 {
+				logger.Infof("Lookup for %s with ip %s\n", m.Answer[0].Header().Name, ipAddress[0])
+			} else {
+				logger.Infof("Lookup for %s with response %s\n", m.Answer[0].Header().Name, m.Answer[0])
+			}
+		}
+		m.SetReply(r)
+		w.WriteMsg(m)
 	}
 }

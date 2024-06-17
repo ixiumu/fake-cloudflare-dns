@@ -7,17 +7,47 @@ import (
 	"strings"
 )
 
-func LookupIP(ipFile string) []string {
+var (
+	ipList   []string
+	ipListv6 []string
+)
+
+func UpdateIPList(ip string) {
+	if isIPv4(ip) {
+		ipList = append(ipList, ip)
+		logger.Infof("IP: %s", ip)
+	} else if isIPv6(ip) {
+		ipListv6 = append(ipListv6, ip)
+		logger.Infof("IPv6: %s", ip)
+	}
+}
+
+func LookupDefaultIP(domain string) {
+	ips, err := net.LookupIP(domain)
+	if err != nil {
+		logger.Infof("Unable to resolve domain %s: %s\n", domain, err)
+	} else {
+		for _, ip := range ips {
+			if fixedIPAddressV4 == "" && isIPv4(ip.String()) {
+				fixedIPAddressV4 = ip.String()
+				logger.Infof("DefaultIP: %s", ip.String())
+			} else if fixedIPAddressV6 == "" && isIPv6(ip.String()) {
+				fixedIPAddressV6 = ip.String()
+				logger.Infof("DefaultIPv6: %s", ip.String())
+			}
+		}
+	}
+}
+
+func LookupIP(ipFile string) {
 	// Open the file
 	file, err := os.Open(ipFile)
 	if err != nil {
-		log.Printf("Unable to open the file: %s", err)
-		return []string{}
+		logger.Errorf("Unable to open the file: %s", err)
+		return
+		// return []string{}
 	}
 	defer file.Close()
-
-	// Create a string slice to store the resolved IP addresses
-	ipAddresses := []string{}
 
 	// Read the file line by line
 	buffer := make([]byte, 1024)
@@ -37,11 +67,11 @@ func LookupIP(ipFile string) []string {
 					log.Printf("Unable to resolve domain %s: %s\n", entry, err)
 				} else {
 					for _, ip := range ips {
-						ipAddresses = append(ipAddresses, ip.String())
+						UpdateIPList(ip.String())
 					}
 				}
 			} else if isIPv4(entry) || isIPv6(entry) {
-				ipAddresses = append(ipAddresses, entry)
+				UpdateIPList(entry)
 			} else {
 				log.Printf("Unrecognized entry: %s\n", entry)
 			}
@@ -53,7 +83,7 @@ func LookupIP(ipFile string) []string {
 	// for _, ip := range ipAddresses {
 	// 	log.Println(ip)
 	// }
-	return ipAddresses
+	// return ipAddresses
 }
 
 // Parse domains and IP addresses, extract non-empty entries

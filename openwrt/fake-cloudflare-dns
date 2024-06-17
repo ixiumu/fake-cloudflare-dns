@@ -1,0 +1,11 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+
+start() {
+    /usr/bin/fake-cloudflare-dns -p 54 -f /etc/fake-cloudflare-dns/ip.txt -dns 114.114.114.114:53 -log none 2>/dev/null 1>/dev/null &
+}
+
+stop() {
+    killall fake-cloudflare-dns
+}

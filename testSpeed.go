@@ -8,6 +8,58 @@ import (
 	"math/rand"
 )
 
+type SpeedTestResult struct {
+	IP     string
+	Speed  time.Duration
+}
+
+var (
+	fastestIPs []SpeedTestResult
+)
+
+func testSpeed() {
+	LookupIP(filename)
+	updateFixedIP()
+	
+	if (interval < 10) {
+		interval = 10
+	}
+
+	ticker := time.NewTicker(time.Duration(interval) * time.Minute)
+	for {
+		<-ticker.C
+		updateFixedIP()	
+	}
+}
+
+func updateFixedIP() {
+	// Test connection speed and sort
+	fastestIPList := testAndSortIPs(ipList)	// Print sorted results
+
+	logger.Infof("Connection speed sorting results:")
+	for _, result := range fastestIPList {
+		logger.Infof("IP: %s, Speed: %s\n", result.IP, result.Speed)
+	}
+
+	// Test connection speed and sort
+	fastestIPListv6 := testAndSortIPs(ipListv6)	// Print sorted results
+
+	logger.Infof("Connection speed sorting results:")
+	for _, result := range fastestIPListv6 {
+		logger.Infof("IP: %s, Speed: %s\n", result.IP, result.Speed)
+	}
+
+	fixedIPAddressV4 = getIP(fastestIPList)
+	if fixedIPAddressV4 != "" {
+		logger.Infof("BestIP: %s", fixedIPAddressV4)
+	}
+
+	fixedIPAddressV6 = getIP(fastestIPListv6)
+	if fixedIPAddressV6 != "" {
+		log.Printf("BestIPv6: %s", fixedIPAddressV6)
+	}
+}
+
 // Test and sort IP addresses based on connection speed
 func testAndSortIPs(ips []string) []SpeedTestResult {
 	results := []SpeedTestResult{}
@@ -15,7 +67,7 @@ func testAndSortIPs(ips []string) []SpeedTestResult {
 	for _, ip := range ips {
 		speed, err := testConnectionSpeed(ip)
 		if err != nil {
-			log.Printf("Failed to connect to IP address %s: %s\n", ip, err)
+			logger.Errorf("Failed to connect to IP address %s: %s\n", ip, err)
 			continue
 		}
 
@@ -33,10 +85,18 @@ func testAndSortIPs(ips []string) []SpeedTestResult {
 	return results
 }
 
+func getIP(list []SpeedTestResult) string {
+	if len(list) == 0 {
+		return ""
+	} else {
+		return list[0].IP
+	}
+}
+
 // Randomly select one from the first five elements
-func getIP(ips []SpeedTestResult) string {
+func getRandomIP(ips []SpeedTestResult) string {
 	if len(ips) == 0 {
-		return "1.0.0.1"
+		return ""
 	}
 	
 	var firstFive []SpeedTestResult
@@ -54,10 +114,10 @@ func getIP(ips []SpeedTestResult) string {
 }
 
 func testConnectionSpeed(ip string) (time.Duration, error) {
-	pingTimes := 2
 	var totalDuration time.Duration
+	j := pingTimes
 
-	for i := 0; i < pingTimes; i++ {
+	for i := 0; i < j; i++ {
 		start := time.Now()
 		var host string
 
@@ -78,6 +138,6 @@ func testConnectionSpeed(ip string) (time.Duration, error) {
 		totalDuration += duration
 	}
 
-	averageDuration := totalDuration / time.Duration(pingTimes)
+	averageDuration := totalDuration / time.Duration(j)
 	return averageDuration, nil
 }
