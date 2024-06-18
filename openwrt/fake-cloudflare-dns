@@ -3,7 +3,7 @@
 START=99
 
 start() {
-    /usr/bin/fake-cloudflare-dns -p 54 -f /etc/fake-cloudflare-dns/ip.txt -dns 114.114.114.114:53 -log none 2>/dev/null 1>/dev/null &
+    /usr/bin/fake-cloudflare-dns -p 54 -f /etc/fake-cloudflare-dns/ip.txt -dns 1.0.0.1:53 -log none 2>/dev/null 1>/dev/null &
 }
 
 stop() {
