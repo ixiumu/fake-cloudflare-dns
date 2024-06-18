@@ -2,10 +2,14 @@ package main
 
 import (
 	"log"
+	"fmt"
 	"net"
 	"sort"
 	"time"
 	"math/rand"
+	"io/ioutil"
+	"net/http"
+	"strings"
 )
 
 type SpeedTestResult struct {
@@ -49,15 +53,64 @@ func updateFixedIP() {
 		logger.Infof("IP: %s, Speed: %s\n", result.IP, result.Speed)
 	}
 
-	fixedIPAddressV4 = getIP(fastestIPList)
+	fixedIPAddressV4 = testIPs(fastestIPList)
 	if fixedIPAddressV4 != "" {
 		logger.Infof("BestIP: %s", fixedIPAddressV4)
 	}
 
-	fixedIPAddressV6 = getIP(fastestIPListv6)
+	fixedIPAddressV6 = testIPs(fastestIPListv6)
 	if fixedIPAddressV6 != "" {
 		log.Printf("BestIPv6: %s", fixedIPAddressV6)
 	}
+}
+
+func checkIPStatus(ip string) bool {
+	if isIPv6(ip) {
+		ip = "["+ip+"]"
+	}
+
+	url := fmt.Sprintf("http://%s/cdn-cgi/trace", ip)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return false
+	}
+
+	content := string(body)
+	if strings.Contains(content, "tls=off") && strings.Contains(content, "warp=") {
+		logger.Infof("Trace: %s", content)
+		return true
+	}
+
+	return false
+}
+
+// func getIP(list []SpeedTestResult) string {
+// 	if len(list) == 0 {
+// 		return ""
+// 	} else {
+// 		return list[0].IP
+// 	}
+// }
+
+func testIPs(ips []SpeedTestResult) string {
+	for _, ip := range ips {
+		if checkIPStatus(ip.IP) {
+			return ip.IP
+		}
+	}
+
+	return ""
 }
 
 // Test and sort IP addresses based on connection speed
@@ -83,14 +136,6 @@ func testAndSortIPs(ips []string) []SpeedTestResult {
 	})
 
 	return results
-}
-
-func getIP(list []SpeedTestResult) string {
-	if len(list) == 0 {
-		return ""
-	} else {
-		return list[0].IP
-	}
 }
 
 // Randomly select one from the first five elements

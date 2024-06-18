@@ -110,5 +110,8 @@ func isIPv4(entry string) bool {
 
 // Check if an entry is an IPv6 address
 func isIPv6(entry string) bool {
+	if len(entry) < 10 {
+		return false
+	}
 	return net.ParseIP(entry) != nil && strings.Contains(entry, ":")
 }
