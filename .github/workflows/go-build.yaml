@@ -100,8 +100,8 @@ jobs:
 
       - name: Build
         run: |
-          go build -v -o ${{ env.ASSET_NAME }}/ -trimpath -ldflags "-s -w -buildid= -X main.version=${{ github.ref }}" ./cmd/warp-plus
-          go build -v -o ${{ env.ASSET_NAME }}/ -trimpath -ldflags "-s -w -buildid= -X main.version=${{ github.ref }}" ./cmd/warp-scan
+          go build -v -o ${{ env.ASSET_NAME }}/ -trimpath -ldflags "-s -w -buildid= -X main.version=${{ github.ref }}" .
+          go build -v -o ${{ env.ASSET_NAME }}/ -trimpath -ldflags "-s -w -buildid= -X main.version=${{ github.ref }}" .
 
       - name: Copy README.md & LICENSE
         run: |
@@ -133,7 +133,7 @@ jobs:
             openssl dgst -$METHOD $FILE | sed 's/([^)]*)//g' >>$DGST
           done
 
-      - name: Upload warp-plus files to Artifacts
+      - name: Upload files to Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ASSET_NAME }}_${{ env.REF }}
