@@ -101,7 +101,6 @@ jobs:
       - name: Build
         run: |
           go build -v -o ${{ env.ASSET_NAME }}/ -trimpath -ldflags "-s -w -buildid= -X main.version=${{ github.ref }}" .
-          go build -v -o ${{ env.ASSET_NAME }}/ -trimpath -ldflags "-s -w -buildid= -X main.version=${{ github.ref }}" .
 
       - name: Copy README.md & LICENSE
         run: |
@@ -134,13 +133,6 @@ jobs:
           done
 
       - name: Upload files to Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.ASSET_NAME }}_${{ env.REF }}
-          path: |
-            ./${{ env.ASSET_NAME }}/*
-
-      - name: Upload warp-scan files to Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ASSET_NAME }}_${{ env.REF }}
