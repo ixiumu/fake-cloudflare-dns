@@ -61,7 +61,9 @@ func LookupIP(ipFile string) {
 		lines := string(buffer[:n])
 		entries := parseEntries(lines)
 		for _, entry := range entries {
-			if isDomain(entry) {
+			if strings.Contains(entry, "#") {
+				continue;
+			} else if isDomain(entry) {
 				ips, err := net.LookupIP(entry)
 				if err != nil {
 					log.Printf("Unable to resolve domain %s: %s\n", entry, err)
